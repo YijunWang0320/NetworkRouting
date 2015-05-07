@@ -93,7 +93,7 @@ class RoutingTable(object):
     '''
 
     def neighbor_check(self, ip, port):
-        return self.neighbor[(ip, port)]['weight'] == sys.maxint
+        return self.neighbor[(ip, port)]['weight'] != sys.maxint
 
     def has_node(self, ip, port):
         if (ip, port) in self.table[(self.host_ip, self.host_port)].keys():

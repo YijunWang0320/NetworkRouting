@@ -3,7 +3,7 @@ import sys
 import socket
 from RoutingTable import RoutingTable
 from collections import defaultdict
-import json
+import cPickle as pickle
 import datetime
 import select
 from WatchDog import WatchDog
@@ -21,7 +21,6 @@ watchDog = None        # the one sending out the routing message
 timer_dict = dict()        # the one keep track of the heart beat message
 MSS = 300              # Maximum size of a datagram
 server_buffer = defaultdict(PacketBuffer)   # have a buffer for every (ip, port) pair that send packet to host
-
 
 
 def send_update():
@@ -62,7 +61,7 @@ def send_routing_message(ip, port):
                     ':' + routing_table.get_edge_through(host_ip, host_port, item[0], item[1])[0] + ':' + str(routing_table.get_edge_through(host_ip, host_port, item[0], item[1])[1]))
     routing_table.lock.release()
     send_dict['message'] = tuple(temp)
-    server_sock.sendto(json.dumps(send_dict), (ip, port))
+    server_sock.sendto(pickle.dumps(send_dict), (ip, port))
 
 
 def tranfer_file(filename, des_ip, des_port):
@@ -73,17 +72,20 @@ def tranfer_file(filename, des_ip, des_port):
     if (des_ip, des_port) not in routing_table.get_keySet():
         print 'Sorry, cannot route to the destination'
         return
-    fp = open(filename, 'rb')
+    fp = open(filename, 'r+b')
+    hop_ip = routing_table.get_edge_through(host_ip, host_port, des_ip, des_port)[0]
+    hop_port = routing_table.get_edge_through(host_ip, host_port, des_ip, des_port)[1]
+    print 'start transfering to:'
+    print hop_ip + ':' + str(hop_port)
     try:
         data = 'y'
         count = 1
         while data != '':
             data = fp.read(MSS)
-            segment = Segment(data, host_ip, host_port, des_ip, des_port, count, False)
-            hop_ip = routing_table.get_edge_through(host_ip, host_port, des_ip, des_port)[0]
-            hop_port = routing_table.get_edge_through(host_ip, host_port, des_ip, des_port)[1]
+            segment = Segment(filename, data, host_ip, host_port, des_ip, des_port, count, False)
             server_sock.sendto(segment.read(), (hop_ip, hop_port))
-        segment = Segment('', host_ip, host_port, des_ip, des_port, count, True)
+            count += 1
+        segment = Segment(filename, data, host_ip, host_port, des_ip, des_port, count, True)
         server_sock.sendto(segment.read(), (hop_ip, hop_port))
     finally:
         fp.close()
@@ -202,6 +204,7 @@ def dealWithSock(message):
     global routing_table
     global timer_dict
     global server_buffer
+    global server_sock
     if 'type' not in message.keys():
         raise
     else:
@@ -265,13 +268,20 @@ def dealWithSock(message):
                 ret = server_buffer[(des_ip, des_port)].append(message)
                 if ret:
                     server_buffer[(des_ip, des_port)].make()
+                    server_buffer[(des_ip, des_port)] = PacketBuffer()
+                    print 'successfully receive file:'
+                    print message['filename']
             else:
                 if (des_ip, des_port) not in routing_table.get_keySet():
                     raise
                 else:
                     # we should forward this segment to the destination
-                    pass
-
+                    hop_ip = routing_table.get_edge_through(host_ip, host_port, des_ip, des_port)[0]
+                    hop_port = routing_table.get_edge_through(host_ip, host_port, des_ip, des_port)[1]
+                    print 'from' + '   ' + message['from']
+                    print 'to' + '   ' + message['to']
+                    print 'next hop' + '   ' + host_ip + ':' + str(hop_port)
+                    server_sock.sendto(pickle.dumps(message), (hop_ip, hop_port))
         else:
             pass
 
@@ -312,12 +322,12 @@ def main():
                         return
                 except KeyboardInterrupt:
                     raise
-                except:
-                    print 'command must be wrong or argument number is wrong'
+                #except:
+                    #print 'command must be wrong or argument number is wrong'
                 print '>'
             else:
-                data, addr = sock.recvfrom(4096, socket.MSG_DONTWAIT)
-                line = json.loads(data)
+                data, addr = sock.recvfrom(8196, socket.MSG_DONTWAIT)
+                line = pickle.loads(data)
                 #try:
                 dealWithSock(line)
                 #except KeyboardInterrupt:
