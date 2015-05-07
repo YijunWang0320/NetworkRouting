@@ -350,7 +350,7 @@ if __name__ == '__main__':
         main()
     except KeyboardInterrupt:
         pass
-    print 'sucessfully exit the program'
+    print 'Successfully exit the program'
     watchDog.stop()
     for key in timer_dict.keys():
         timer = timer_dict[key]
