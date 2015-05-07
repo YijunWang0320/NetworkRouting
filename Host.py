@@ -75,8 +75,7 @@ def tranfer_file(filename, des_ip, des_port):
     fp = open(filename, 'r+b')
     hop_ip = routing_table.get_edge_through(host_ip, host_port, des_ip, des_port)[0]
     hop_port = routing_table.get_edge_through(host_ip, host_port, des_ip, des_port)[1]
-    print 'start transfering to:'
-    print hop_ip + ':' + str(hop_port)
+    print 'Next hop = ' + hop_ip + ':' + str(hop_port)
     try:
         data = 'y'
         count = 1
@@ -89,6 +88,7 @@ def tranfer_file(filename, des_ip, des_port):
         server_sock.sendto(segment.read(), (hop_ip, hop_port))
     finally:
         fp.close()
+        print 'File sent successfully'
     return
 
 
@@ -269,8 +269,12 @@ def dealWithSock(message):
                 if ret:
                     server_buffer[(des_ip, des_port)].make()
                     server_buffer[(des_ip, des_port)] = PacketBuffer()
-                    print 'successfully receive file:'
-                    print message['filename']
+                    print 'Packet received'
+                    print 'Source = ' + message['from']
+                    print 'Destination = ' + message['to']
+                    print 'File received successfully'
+                    sys.stdout.write('%>')
+                    sys.stdout.flush()
             else:
                 if (des_ip, des_port) not in routing_table.get_keySet():
                     raise
@@ -278,9 +282,12 @@ def dealWithSock(message):
                     # we should forward this segment to the destination
                     hop_ip = routing_table.get_edge_through(host_ip, host_port, des_ip, des_port)[0]
                     hop_port = routing_table.get_edge_through(host_ip, host_port, des_ip, des_port)[1]
-                    print 'from' + '   ' + message['from']
-                    print 'to' + '   ' + message['to']
-                    print 'next hop' + '   ' + host_ip + ':' + str(hop_port)
+                    print 'Packet received'
+                    print 'Source = ' + message['from']
+                    print 'Destination' + message['to']
+                    print 'Next hop = ' + host_ip + ':' + str(hop_port)
+                    sys.stdout.write('%>')
+                    sys.stdout.flush()
                     server_sock.sendto(pickle.dumps(message), (hop_ip, hop_port))
         else:
             pass
@@ -310,7 +317,8 @@ def main():
     server_sock.bind((host_ip, host_port))
     sock_list.append(server_sock)
     sock_list.append(sys.stdin)
-    print '>'
+    sys.stdout.write('%>')
+    sys.stdout.flush()
     while True:
         read_sockets, write_sockets, error_sockets = select.select(sock_list, [], [])
         for sock in read_sockets:
@@ -322,9 +330,10 @@ def main():
                         return
                 except KeyboardInterrupt:
                     raise
-                #except:
-                    #print 'command must be wrong or argument number is wrong'
-                print '>'
+                except:
+                    print 'command must be wrong or argument number is wrong'
+                sys.stdout.write('%>')
+                sys.stdout.flush()
             else:
                 data, addr = sock.recvfrom(8196, socket.MSG_DONTWAIT)
                 line = pickle.loads(data)
