@@ -9,6 +9,7 @@ import select
 from WatchDog import WatchDog
 from Segment import Segment
 from PacketBuffer import PacketBuffer
+from PacketTracker import PacketTracker
 
 # The global variables
 host_ip = ''
@@ -21,6 +22,16 @@ watchDog = None        # the one sending out the routing message
 timer_dict = dict()        # the one keep track of the heart beat message
 MSS = 300              # Maximum size of a datagram
 server_buffer = defaultdict(PacketBuffer)   # have a buffer for every (ip, port) pair that send packet to host
+proxy_server_list = dict()                  # keep track of all the proxy servers
+packetTracker = PacketTracker(5)             # The packetTrack to keep track of all the ACKs
+
+
+def add_proxy(proxy_ip, proxy_port, neighbor_ip, neighbor_port):
+    proxy_server_list[(neighbor_ip, neighbor_port)] = (proxy_ip, proxy_port)
+
+
+def remove_proxy(neighbor_ip, neighbor_port):
+    proxy_server_list[(neighbor_ip, neighbor_port)] = None
 
 
 def send_update():
@@ -64,11 +75,13 @@ def send_routing_message(ip, port):
     server_sock.sendto(pickle.dumps(send_dict), (ip, port))
 
 
-def tranfer_file(filename, des_ip, des_port):
+def transfer_file(filename, des_ip, des_port):
     global host_ip
     global host_port
     global routing_table
     global MSS
+    global proxy_server_list
+    global packetTracker
     if (des_ip, des_port) not in routing_table.get_keySet():
         print 'Sorry, cannot route to the destination'
         return
@@ -76,19 +89,24 @@ def tranfer_file(filename, des_ip, des_port):
     hop_ip = routing_table.get_edge_through(host_ip, host_port, des_ip, des_port)[0]
     hop_port = routing_table.get_edge_through(host_ip, host_port, des_ip, des_port)[1]
     print 'Next hop = ' + hop_ip + ':' + str(hop_port)
+    if (hop_ip, hop_port) in proxy_server_list.keys() and proxy_server_list[(hop_ip, hop_port)]:
+        hop_ip = proxy_server_list[(hop_ip, hop_port)][0]
+        hop_port = proxy_server_list[(hop_ip, hop_port)][1]
+    packetTracker.start(filename)
     try:
         data = 'y'
         count = 1
         while data != '':
             data = fp.read(MSS)
             segment = Segment(filename, data, host_ip, host_port, des_ip, des_port, count, False)
+            packetTracker.add(segment.read(), hop_ip, hop_port, server_sock)
             server_sock.sendto(segment.read(), (hop_ip, hop_port))
             count += 1
         segment = Segment(filename, data, host_ip, host_port, des_ip, des_port, count, True)
+        packetTracker.add(segment.read(), hop_ip, hop_port, server_sock)
         server_sock.sendto(segment.read(), (hop_ip, hop_port))
     finally:
         fp.close()
-        print 'File sent successfully'
     return
 
 
@@ -99,6 +117,7 @@ def init_host(config_file):
     global routing_table
     global watchDog
     global timer_dict
+    global proxy_server_list
     fp = open(config_file)
     count = 1
     for line in fp:
@@ -124,6 +143,13 @@ def init_host(config_file):
     routing_table.set_edge_weight(host_ip, host_port, host_ip, host_port, 0.0)
     routing_table.set_edge_through(host_ip, host_port, host_ip, host_port, host_ip, host_port)
     routing_table.lock.release()
+    '''
+        This is just added for part three
+        having a proxy list
+    '''
+    for each in routing_table.get_all_neighbors():
+        proxy_server_list[each] = None
+
     watchDog = WatchDog(timeout, [], send_update)
     watchDog.start()
     for key in routing_table.neighbor.keys():
@@ -182,7 +208,15 @@ def dealWithCommand(command):
         filename = var[1]
         des_ip = var[2]
         des_port = int(var[3])
-        tranfer_file(filename, des_ip, des_port)
+        transfer_file(filename, des_ip, des_port)
+    elif var[0] == 'ADDPROXY':
+        if len(var) != 5:
+            raise
+        proxy_ip = var[1]
+        proxy_port = int(var[2])
+        neighbor_ip = var[3]
+        neighbor_port = int(var[4])
+        add_proxy(proxy_ip, proxy_port, neighbor_ip, neighbor_port)
     else:
         pass
     return True
@@ -205,6 +239,7 @@ def dealWithSock(message):
     global timer_dict
     global server_buffer
     global server_sock
+    global packetTracker
     if 'type' not in message.keys():
         raise
     else:
@@ -262,10 +297,13 @@ def dealWithSock(message):
         elif message['type'] == 'DataTransfer':
             des_ip = message['to'].split(':')[0]
             des_port = int(message['to'].split(':')[1])
+            from_ip = message['from'].split(':')[0]
+            from_port = int(message['from'].split(':')[1])
             if des_ip == host_ip and des_port == host_port:
                 if (des_ip, des_port) not in server_buffer.keys():
                     server_buffer[(des_ip, des_port)] = PacketBuffer()
                 ret = server_buffer[(des_ip, des_port)].append(message)
+                server_sock.sendto(pickle.dumps({'type': 'ACK', 'ip': des_ip, 'port': des_port, 'filename': message['filename'], 'number': message['number']}), (from_ip, from_port))
                 if ret:
                     server_buffer[(des_ip, des_port)].make()
                     server_buffer[(des_ip, des_port)] = PacketBuffer()
@@ -289,6 +327,13 @@ def dealWithSock(message):
                     sys.stdout.write('%>')
                     sys.stdout.flush()
                     server_sock.sendto(pickle.dumps(message), (hop_ip, hop_port))
+        elif message['type'] == 'ACK':
+            flag = packetTracker.acknowledge(message['filename'], message['number'])
+            if flag:
+                print 'File sent successfully'
+                sys.stdout.write('%>')
+                sys.stdout.flush()
+            pass
         else:
             pass
 
