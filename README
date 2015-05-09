@@ -1,0 +1,35 @@
+1. What files needed to run the code on one host?
+   First, we need to keep every python file in here on one host under one file. Second, we need an configuration file like
+   client1.txt. (This is specified in the homework requirement) Third, to run the bonus part, we need to have the newudpl proxy
+   here. That's all!
+
+2. What are the commands to run the code?
+   If the client1.txt is the configuration file, the command would be:
+                                                 python Host.py client1.txt
+   And if we want to use the proxy, we have to open it manually. (According to piazza)
+
+3. What part of the homework is done?
+   In PA2, I did part1, part2 and also part3.
+   All the commands that are specified can run.
+
+4. Other things to know?
+
+   I've asked the TAs if the poison reverse would always help. The answer is no, since if there is a loop of three or more, it
+   would not work.
+
+   So, how could we solve this problem (count-to-infinity)?
+   (1) We could save more information. Currently ,we only save the information of next hop in the routing table, this way, we could
+   implement the poison reverse. However, we could save all the nodes that has been through on this route. And check if the current
+   node has been visited. If the current node is visited, we should not calculate the distance using this route again. I think this
+   would work, but must more information would be saved when the Internet is huge.
+
+   (2) We could use maximum hop count to solve this problem. This is used in the RIP protocol.
+       I think the method is called route poisoning.
+
+   (3) As I look on the internet, a lot of other algorithms are posted saying that they could solve the count-to-infinity problem.
+
+5. Links
+   The code is posted on my GitHub.
+   Please contact me if there is any issue with executing the program. Thank you.
+
+   Email: yw2676@columbia.edu
