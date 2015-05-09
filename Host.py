@@ -177,6 +177,7 @@ def dealWithCommand(command):
     global timeout
     global routing_table
     global timer_dict
+    global watchDog
     var = command.strip().split()
     if var[0] == 'SHOWRT':
         if len(var) != 1:
@@ -192,6 +193,8 @@ def dealWithCommand(command):
         if (t_ip, t_port) not in linkdown_list and (t_ip, t_port) in routing_table.get_all_neighbors():
             linkdown_list.add((t_ip, t_port))
         routing_table.neighbor_linkdown(t_ip, t_port)
+        watchDog.stop()
+        send_update()
     elif var[0] == 'LINKUP':
         if len(var) != 3:
             raise
@@ -200,7 +203,10 @@ def dealWithCommand(command):
         if (t_ip, t_port) in linkdown_list and (t_ip, t_port) in routing_table.get_all_neighbors():
             linkdown_list.remove((t_ip, t_port))
         routing_table.neighbor_linkup(t_ip, t_port)
+        watchDog.stop()
+        send_update()
     elif var[0] == 'print':
+        # This is just for the use of debug
         if len(var) != 5:
             raise
         from_ip = var[1]
@@ -209,6 +215,7 @@ def dealWithCommand(command):
         d_port = int(var[4])
         print routing_table.get_edge_weight(from_ip, from_port, d_ip, d_port)
     elif var[0] == 'print_neighbor':
+        # This is just for the use of debug
         if len(var) != 3:
             raise
         t_ip = var[1]
@@ -219,6 +226,8 @@ def dealWithCommand(command):
             raise
         if routing_table.neighbor_check(var[1], var[2]):
             routing_table.change_weight(var[1], var[2], var[3])
+            watchDog.stop()
+            send_update()
         else:
             pass
     elif var[0] == 'CLOSE':

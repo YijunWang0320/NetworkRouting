@@ -119,7 +119,7 @@ class RoutingTable(object):
     def get_neighbors(self):
         relist = []
         for key in self.neighbor.keys():
-            if self.neighbor[key]['weight'] != sys.maxint:
+            if 'weight' in self.neighbor[key].keys() and self.neighbor[key]['weight'] != sys.maxint:
                 relist.append(key)
         return relist
 

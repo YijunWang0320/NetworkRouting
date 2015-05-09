@@ -9,12 +9,14 @@
    And if we want to use the proxy, we have to open it manually. (According to piazza)
 
 3. What part of the homework is done?
-   In PA2, I did part1, part2 and also part3.
+   In PA2, I did part1, part2 and also part3. (Packet Loss and Checksum)
    All the commands that are specified can run.
 
 4. Other things to know?
+   1) I assume that the link the bidirectional, which means that if a link is down, both directions would be down. So most of the test that I did was typing LINKDOWN OR LINKUP on both sides of the link.
 
-   I've asked the TAs if the poison reverse would always help. The answer is no, since if there is a loop of three or more, it
+
+   2)  I've asked the TAs if the poison reverse would always help. The answer is no, since if there is a loop of three or more, it
    would not work.
 
    So, how could we solve this problem (count-to-infinity)?
@@ -30,6 +32,7 @@
 
 5. Links
    The code is posted on my GitHub.
-   Please contact me if there is any issue with executing the program. Thank you.
+   https://github.com/YijunWang0320/NetworkRouting
 
+   Please contact me if there is any issue with executing the program. Thank you.
    Email: yw2676@columbia.edu
