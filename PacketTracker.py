@@ -23,6 +23,7 @@ class PacketTracker(object):
     def resend(self, data, hop_ip, hop_port, server_sock):
         filename = data['filename']
         number = data['number']
+        print 'resend packet'
         server_sock.sendto(pickle.dumps(data), (hop_ip, hop_port))
         self.tracker[(filename, number)].reset()
         self.tracker[(filename, number)].start()

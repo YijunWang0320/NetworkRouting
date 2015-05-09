@@ -23,14 +23,27 @@ timer_dict = dict()        # the one keep track of the heart beat message
 MSS = 300              # Maximum size of a datagram
 server_buffer = defaultdict(PacketBuffer)   # have a buffer for every (ip, port) pair that send packet to host
 proxy_server_list = dict()                  # keep track of all the proxy servers
-packetTracker = PacketTracker(5)             # The packetTrack to keep track of all the ACKs
+packetTracker = PacketTracker(5)            # The packetTrack to keep track of all the ACKs
+linkdown_list = set()                       # This is used to differ between CLOSE and LINKDOWN
 
 
 def add_proxy(proxy_ip, proxy_port, neighbor_ip, neighbor_port):
+    global routing_table
+    global proxy_server_list
+    if (neighbor_ip, neighbor_port) not in routing_table.get_all_neighbors():
+        print 'No such neighbor'
+    if (neighbor_ip, neighbor_port) not in routing_table.get_neighbors():
+        print 'The neighbor is probably down right now'
     proxy_server_list[(neighbor_ip, neighbor_port)] = (proxy_ip, proxy_port)
 
 
 def remove_proxy(neighbor_ip, neighbor_port):
+    global routing_table
+    global proxy_server_list
+    if (neighbor_ip, neighbor_port) not in routing_table.get_all_neighbors():
+        print 'No such neighbor'
+    if (neighbor_ip, neighbor_port) not in routing_table.get_neighbors():
+        print 'The neighbor is probably down right now'
     proxy_server_list[(neighbor_ip, neighbor_port)] = None
 
 
@@ -163,6 +176,7 @@ def dealWithCommand(command):
     global host_port
     global timeout
     global routing_table
+    global timer_dict
     var = command.strip().split()
     if var[0] == 'SHOWRT':
         if len(var) != 1:
@@ -175,12 +189,16 @@ def dealWithCommand(command):
             raise
         t_ip = var[1]
         t_port = int(var[2])
+        if (t_ip, t_port) not in linkdown_list and (t_ip, t_port) in routing_table.get_all_neighbors():
+            linkdown_list.add((t_ip, t_port))
         routing_table.neighbor_linkdown(t_ip, t_port)
     elif var[0] == 'LINKUP':
         if len(var) != 3:
             raise
         t_ip = var[1]
         t_port = int(var[2])
+        if (t_ip, t_port) in linkdown_list and (t_ip, t_port) in routing_table.get_all_neighbors():
+            linkdown_list.remove((t_ip, t_port))
         routing_table.neighbor_linkup(t_ip, t_port)
     elif var[0] == 'print':
         if len(var) != 5:
@@ -190,6 +208,12 @@ def dealWithCommand(command):
         d_ip = var[3]
         d_port = int(var[4])
         print routing_table.get_edge_weight(from_ip, from_port, d_ip, d_port)
+    elif var[0] == 'print_neighbor':
+        if len(var) != 3:
+            raise
+        t_ip = var[1]
+        t_port = int(var[2])
+        print routing_table.get_neighbor_weight(t_ip, t_port)
     elif var[0] == 'CHANGECOST':
         if len(var) != 4:
             raise
@@ -217,8 +241,14 @@ def dealWithCommand(command):
         neighbor_ip = var[3]
         neighbor_port = int(var[4])
         add_proxy(proxy_ip, proxy_port, neighbor_ip, neighbor_port)
+    elif var[0] == 'REMOVEPROXY':
+        if len(var) != 3:
+            raise
+        neighbor_ip = var[1]
+        neighbor_port = int(var[2])
+        remove_proxy(neighbor_ip, neighbor_port)
     else:
-        pass
+        raise
     return True
 
 
@@ -240,6 +270,7 @@ def dealWithSock(message):
     global server_buffer
     global server_sock
     global packetTracker
+    global linkdown_list
     if 'type' not in message.keys():
         raise
     else:
@@ -247,7 +278,7 @@ def dealWithSock(message):
             come_ip = message['from'].split(':')[0]
             come_port = int(message['from'].split(':')[1])
 
-            if not routing_table.neighbor_check(come_ip, come_port):
+            if not routing_table.neighbor_check(come_ip, come_port) and (come_ip, come_port) not in linkdown_list:
                 routing_table.neighbor_linkup(come_ip, come_port)
             watchDog = timer_dict[(come_ip, come_port)]
             watchDog.reset()
@@ -302,8 +333,10 @@ def dealWithSock(message):
             if des_ip == host_ip and des_port == host_port:
                 if (des_ip, des_port) not in server_buffer.keys():
                     server_buffer[(des_ip, des_port)] = PacketBuffer()
-                ret = server_buffer[(des_ip, des_port)].append(message)
-                server_sock.sendto(pickle.dumps({'type': 'ACK', 'ip': des_ip, 'port': des_port, 'filename': message['filename'], 'number': message['number']}), (from_ip, from_port))
+                # cor for correction check, ret for packet all received check
+                ret, cor = server_buffer[(des_ip, des_port)].append(message)
+                if cor:
+                    server_sock.sendto(pickle.dumps({'type': 'ACK', 'ip': des_ip, 'port': des_port, 'filename': message['filename'], 'number': message['number']}), (from_ip, from_port))
                 if ret:
                     server_buffer[(des_ip, des_port)].make()
                     server_buffer[(des_ip, des_port)] = PacketBuffer()
@@ -381,13 +414,18 @@ def main():
                 sys.stdout.flush()
             else:
                 data, addr = sock.recvfrom(8196, socket.MSG_DONTWAIT)
-                line = pickle.loads(data)
-                #try:
-                dealWithSock(line)
-                #except KeyboardInterrupt:
-                    #raise
-                #except:
-                    #print 'exception happened in messaging process'
+                try:
+                    line = pickle.loads(data)
+                except KeyboardInterrupt:
+                    raise
+                except:
+                    pass
+                try:
+                    dealWithSock(line)
+                except KeyboardInterrupt:
+                    raise
+                except:
+                    print 'exception happened in messaging process'
 
 
 if __name__ == '__main__':
