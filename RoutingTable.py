@@ -42,7 +42,7 @@ class RoutingTable(object):
 
     def neighbor_linkdown(self, ip, port):
         if (ip, port) not in self.get_all_neighbors():
-            return
+            raise
         self.lock.acquire()
         self.neighbor[(ip, port)]['weight'] = sys.maxint
         for point in self.table[(self.host_ip, self.host_port)].keys():
@@ -61,7 +61,7 @@ class RoutingTable(object):
 
     def neighbor_linkup(self, ip, port):
         if (ip, port) not in self.get_all_neighbors():
-            return
+            raise
         self.lock.acquire()
         self.neighbor[(ip, port)]['weight'] = self.neighbor[(ip, port)]['origin']
         for point in self.table[(self.host_ip, self.host_port)].keys():
@@ -78,7 +78,7 @@ class RoutingTable(object):
 
     def change_cost(self, ip, port, cost):
         if (ip, port) not in self.get_all_neighbors():
-            return
+            raise
         self.lock.acquire()
         self.neighbor[(ip, port)]['weight'] = cost
         self.neighbor[(ip, port)]['origin'] = cost

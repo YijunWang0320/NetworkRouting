@@ -409,7 +409,8 @@ def main():
                 except KeyboardInterrupt:
                     raise
                 except:
-                    print 'command must be wrong or argument number is wrong'
+                    print 'command must be wrong or argument, you should check whether the command nummber is correct or not, or if the host exist or not'
+                    print 'There might be a case that the host is not your neighbor in some command'
                 sys.stdout.write('%>')
                 sys.stdout.flush()
             else:
